@@ -1,0 +1,48 @@
+name: CI
+
+on: [pull_request, push]
+
+jobs:
+  DCI-Lint:
+    runs-on: ubuntu-20.04
+    name: DCI-Lint
+    steps:
+    - name: Lint Git Repo
+      id: lint-git-repo
+      uses: petermetz/gh-action-dci-lint@v0.6.1
+      with:
+        lint-git-repo-request: '{"cloneUrl": "${{ github.server_url }}/${{ github.repository }}.git", "fetchArgs": ["--update-head-ok", "--no-tags", "--prune", "--progress", "--no-recurse-submodules", "--depth=1", "origin" ,"+${{ github.sha }}:${{ github.ref }}"], "checkoutArgs": [ "${{ github.ref }}"], "targetPhrasePatterns": [], "configDefaultsUrl": "https://inclusivenaming.org/json/dci-lint-config-recommended-v1.json" }'
+    - name: Get the output response
+      run: echo "${{ steps.lint-git-repo.outputs.lint-git-repo-response }}"
+
+  build:
+
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        os: [ubuntu-20.04]
+        node-version: [v12.22.6, v14.17.6, v16.8.0]
+        experimental: [false]
+
+    steps:
+    - name: Set up JDK 11 (OpenAPI generator needs it)
+      uses: actions/setup-java@v1.4.3
+      with:
+        java-version: '11' # The JDK version to make available on the path.
+        java-package: jdk # (jre, jdk, or jdk+fx) - defaults to jdk
+        architecture: x64 # (x64 or x86) - defaults to x64
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v2.1.2
+      with:
+        node-version: ${{ matrix.node-version }}
+
+    - uses: actions/checkout@v2.3.4
+
+    - run: yarn install --immutable
+    - run: yarn build
+    - run: yarn test:all --bail
